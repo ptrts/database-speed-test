@@ -1,0 +1,41 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: database-speed-test
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/database_speed_test
+    username: postgres
+    password: 123456
+    driver-class-name: org.postgresql.Driver
+
+    hikari:
+      pool-name: JpaExampleHikariPool
+      maximum-pool-size: 20
+      minimum-idle: 20
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+      validation-timeout: 5000
+      auto-commit: false
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+        connection:
+          provider_disables_autocommit: true
+
+logging:
+  level:
+    org.hibernate.SQL: debug
+    org.hibernate.orm.jdbc.bind: trace
+    com.zaxxer.hikari: info
