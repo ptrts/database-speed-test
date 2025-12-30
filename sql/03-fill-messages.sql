@@ -4,7 +4,11 @@ with
                     cu.user_id,
                     row_number() over (order by cu.campaign_id, cu.user_id) as rn
                 from
-                    campaign_users cu)
+                    campaign_users cu
+                order by
+                    cu.campaign_id,
+                    cu.user_id
+                )
 insert
 into
     message

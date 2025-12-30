@@ -1,8 +1,8 @@
 create or replace procedure gen_campaign_users(
-    p_start_campaign_id  int default 0,
+    p_start_campaign_id  bigint default 0,
     p_campaigns_number   int default 100,
     p_users_per_campaign int default 10000,
-    p_users_number       bigint default 100000
+    p_users_number       int default 100000
 )
     language plpgsql
 as
@@ -10,7 +10,7 @@ $$
 declare
     c_batch_max_size     constant int    := 20000;
     i                             int;
-    current_campaign_id           int;
+    current_campaign_id           bigint;
     campaign_users_count          int;
     campaign_users_to_add         int;
     batch_size                    int;

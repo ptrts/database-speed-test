@@ -1,7 +1,10 @@
 package x;
 
 import org.jspecify.annotations.Nullable;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -17,6 +20,8 @@ import java.util.stream.Stream;
 @SpringBootTest
 public class BigTest {
 
+    public static final Logger logger = LoggerFactory.getLogger(BigTest.class);
+
     @Autowired
     private MessageJdbcRepository messageJdbcRepository;
 
@@ -24,6 +29,7 @@ public class BigTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
+    @Tag("manual")
     public void test() {
         Long maxCampaignId = getMaxCampaignId();
         if (maxCampaignId == null) {
@@ -36,19 +42,23 @@ public class BigTest {
         int maxCampaignsPerThread = 2;
         int threadsNumber = (int) Math.ceil(1. * campaignsNumber / maxCampaignsPerThread);
 
+        logger.info("Generating campaign users...");
+
         // Генерируем базу для новых рассылок
         jdbcTemplate.update(
                 """
                 call gen_campaign_users(
-                    p_start_campaign_id => ?,
-                    p_campaigns_number => ?,
-                    p_users_per_campaign => ?
+                    p_start_campaign_id => ?::bigint,
+                    p_campaigns_number => ?::int,
+                    p_users_per_campaign => ?::int
                 )
                 """,
                 firstCampaignId,
                 campaignsNumber,
                 usersPerCampaign
         );
+
+        logger.info("Campaign users has been generated");
 
         Stream<Runnable> writerThreadRunnables = IntStream
                 .range(0, threadsNumber)
@@ -64,6 +74,8 @@ public class BigTest {
                 .range(0, 0)
                 .mapToObj(it -> this::readerThread);
 
+        logger.info("Running threads");
+
         runThreads(Stream.concat(
                 writerThreadRunnables,
                 readerThreadRunnables
@@ -71,6 +83,7 @@ public class BigTest {
     }
 
     private void readerThread() {
+        logger.info("start");
         while (true) {
             messageJdbcRepository.getUserMessages(55L);
             if (Thread.interrupted()) return;
@@ -78,13 +91,17 @@ public class BigTest {
     }
 
     private void writerThread(long campaignIdStart, long campaignIdEnd) {
-        for (long i = campaignIdStart; i < campaignIdEnd; i++) {
-            writeCampaign(i);
+        logger.info("start");
+        for (long campaignId = campaignIdStart; campaignId < campaignIdEnd; campaignId++) {
+            logger.info("campaignId={}", campaignId);
+            writeCampaign(campaignId);
             if (Thread.interrupted()) return;
         }
     }
 
     private void writeCampaign(long campaignId) {
+        logger.info("campaignId={}", campaignId);
+        logger.info("Querying...");
         List<Message> messages = jdbcTemplate.query(
                 """
                 select
@@ -117,6 +134,8 @@ public class BigTest {
                 },
                 campaignId
         );
+
+        logger.info("Running batchInsert...");
 
         messageJdbcRepository.batchInsert(messages, 100);
     }
