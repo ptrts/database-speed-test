@@ -6,6 +6,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -53,7 +57,7 @@ public class BigTest {
                     int campaignIndexEnd = Math.min(campaignsNumber, campaignIndexStart + maxCampaignsPerThread);
                     long campaignIdStart = firstCampaignId + campaignIndexStart;
                     long campaignIdEnd = firstCampaignId + campaignIndexEnd;
-                    return () -> writerThread(campaignIdStart, campaignIdEnd, usersPerCampaign);
+                    return () -> writerThread(campaignIdStart, campaignIdEnd);
                 });
 
         Stream<Runnable> readerThreadRunnables = IntStream
@@ -73,14 +77,47 @@ public class BigTest {
         }
     }
 
-    private void writerThread(long campaignIdStart, long campaignIdEnd, int usersPerCampaign) {
+    private void writerThread(long campaignIdStart, long campaignIdEnd) {
         for (long i = campaignIdStart; i < campaignIdEnd; i++) {
-            writeCampaign(i, usersPerCampaign);
+            writeCampaign(i);
         }
     }
 
-    private void writeCampaign(long campaignId, int usersPerCampaign) {
+    private void writeCampaign(long campaignId) {
+        List<Message> messages = jdbcTemplate.query(
+                """
+                select
+                    user_id
+                from
+                    campaign_users
+                where
+                    campaign_id = ?
+                """,
+                (rs, n) -> {
 
+                    Message message = new Message();
+                    message.id_uuid = UUID.randomUUID();
+                    message.campaign_id = campaignId;
+                    message.user_id = rs.getLong(1);
+                    message.topic = "Кампания " + campaignId;
+                    message.created = Instant.now();
+                    message.sent = null;
+                    message.deleted = null;
+
+                    message.text =
+                            Stream
+                                    .generate(() ->
+                                            "текст кампании " + campaignId
+                                    )
+                                    .limit(20)
+                                    .collect(Collectors.joining(", "));
+
+                    return message;
+                },
+                campaignId
+        );
+
+        messageJdbcRepository.batchInsert(messages, 100);
     }
 
     private void runThreads(Stream<Runnable> runnables) {

@@ -17,6 +17,7 @@ public class Message {
     @Id
     @SequenceGenerator(name = "message_id_bigint_seq", allocationSize = 1)
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "message_id_bigint_seq")
+    @org.hibernate.annotations.ColumnDefault("nextval('message_id_bigint_seq')")
     public Long id_bigint;
 
     //@Id
