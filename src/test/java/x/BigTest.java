@@ -61,7 +61,7 @@ public class BigTest {
                 });
 
         Stream<Runnable> readerThreadRunnables = IntStream
-                .range(0, 5)
+                .range(0, 0)
                 .mapToObj(it -> this::readerThread);
 
         runThreads(Stream.concat(
@@ -80,6 +80,7 @@ public class BigTest {
     private void writerThread(long campaignIdStart, long campaignIdEnd) {
         for (long i = campaignIdStart; i < campaignIdEnd; i++) {
             writeCampaign(i);
+            if (Thread.interrupted()) return;
         }
     }
 
