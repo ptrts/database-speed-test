@@ -6,8 +6,10 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfigureMetrics;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.List;
@@ -17,7 +19,8 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 // todo Может быть нужно добавить больше потоков в контейнер с PG и настроить больше воркеров в самом PG.
-@SpringBootTest
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
+@AutoConfigureMetrics
 public class BigTest {
 
     public static final Logger logger = LoggerFactory.getLogger(BigTest.class);
@@ -28,6 +31,9 @@ public class BigTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private TransactionTemplate transactionTemplate;
+
     @Test
     @Tag("manual")
     public void test() {
@@ -37,26 +43,34 @@ public class BigTest {
         }
 
         long firstCampaignId = maxCampaignId + 1;
-        int campaignsNumber = 10;
-        int usersPerCampaign = 100_000;
-        int maxCampaignsPerThread = 2;
-        int threadsNumber = (int) Math.ceil(1. * campaignsNumber / maxCampaignsPerThread);
+
+        logger.info("firstCampaignId={}", firstCampaignId);
+
+        int campaignsNumber = 4;
+        int usersPerCampaign = 1000;
+        int threadsNumber = 2;
+        int maxCampaignsPerThread = (int) Math.ceil(1. * campaignsNumber / threadsNumber);
+
+        logger.info("maxCampaignsPerThread={}", maxCampaignsPerThread);
 
         logger.info("Generating campaign users...");
 
         // Генерируем базу для новых рассылок
-        jdbcTemplate.update(
-                """
-                call gen_campaign_users(
-                    p_start_campaign_id => ?::bigint,
-                    p_campaigns_number => ?::int,
-                    p_users_per_campaign => ?::int
-                )
-                """,
-                firstCampaignId,
-                campaignsNumber,
-                usersPerCampaign
-        );
+        transactionTemplate.execute((status) -> {
+            jdbcTemplate.update(
+                    """
+                    call gen_campaign_users(
+                        p_start_campaign_id => ?::bigint,
+                        p_campaigns_number => ?::int,
+                        p_users_per_campaign => ?::int
+                    )
+                    """,
+                    firstCampaignId,
+                    campaignsNumber,
+                    usersPerCampaign
+            );
+            return null;
+        });
 
         logger.info("Campaign users has been generated");
 
@@ -137,7 +151,10 @@ public class BigTest {
 
         logger.info("Running batchInsert...");
 
-        messageJdbcRepository.batchInsert(messages, 100);
+        transactionTemplate.execute((status) -> {
+            messageJdbcRepository.batchInsert(messages, 100);
+            return null;
+        });
     }
 
     private void runThreads(Stream<Runnable> runnables) {

@@ -49,28 +49,34 @@ public class MessageJdbcRepository {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private JdbcTemplateWrapper jdbcTemplateWrapper;
+
+    @Autowired
+    private BatchInsertTimerWrapper batchInsertTimerWrapper;
+
     public void batchInsert(List<Message> messages, int batchSize) {
-        jdbcTemplate.batchUpdate(
+        jdbcTemplateWrapper.batchUpdate(
                 """
                 insert into
-                    message(id_bigint, id_uuid, campaign_id, user_id, topic, text, created, sent, deleted)
-                    values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    message(id_uuid, campaign_id, user_id, topic, text, created, sent, deleted)
+                    values (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 messages,
                 batchSize,
                 (ps, message) -> {
                     //@formatter:off
-                    ps.setLong      (1, message.id_bigint     );
-                    ps.setObject    (2, message.id_uuid       );
-                    ps.setLong      (3, message.campaign_id   );
-                    ps.setLong      (4, message.user_id       );
-                    ps.setString    (5, message.topic         );
-                    ps.setString    (6, message.text          );
-                    ps.setTimestamp (7, toDb(message.created) );
-                    ps.setTimestamp (8, toDb(message.sent)    );
-                    ps.setTimestamp (9, toDb(message.deleted) );
+                    ps.setObject    (1, message.id_uuid       );
+                    ps.setLong      (2, message.campaign_id   );
+                    ps.setLong      (3, message.user_id       );
+                    ps.setString    (4, message.topic         );
+                    ps.setString    (5, message.text          );
+                    ps.setTimestamp (6, toDb(message.created) );
+                    ps.setTimestamp (7, toDb(message.sent)    );
+                    ps.setTimestamp (8, toDb(message.deleted) );
                     //@formatter:on
-                }
+                },
+                batchInsertTimerWrapper
         );
     }
     
