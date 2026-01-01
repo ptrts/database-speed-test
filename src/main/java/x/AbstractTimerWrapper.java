@@ -17,7 +17,6 @@ public abstract class AbstractTimerWrapper {
         this.timerProvider = Timer
                 .builder(name)
                 .description(description)
-                .publishPercentileHistogram()
                 .withRegistry(registry)
         ;
     }
