@@ -17,7 +17,7 @@ public abstract class AbstractTimerWrapper {
         this.timerProvider = Timer
                 .builder(name)
                 .description(description)
-                .publishPercentiles(0.95)
+                .publishPercentiles(0.95, 0.99)
                 .withRegistry(registry)
         ;
     }
