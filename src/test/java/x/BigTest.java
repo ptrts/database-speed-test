@@ -47,8 +47,8 @@ public class BigTest {
         logger.info("firstCampaignId={}", firstCampaignId);
 
         int campaignsNumber = 4;
-        int usersPerCampaign = 1000;
-        int threadsNumber = 2;
+        int usersPerCampaign = 100_000;
+        int threadsNumber = 1;
         int maxCampaignsPerThread = (int) Math.ceil(1. * campaignsNumber / threadsNumber);
 
         logger.info("maxCampaignsPerThread={}", maxCampaignsPerThread);
