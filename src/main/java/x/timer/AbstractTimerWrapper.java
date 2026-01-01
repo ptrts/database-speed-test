@@ -1,4 +1,4 @@
-package x;
+package x.timer;
 
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;

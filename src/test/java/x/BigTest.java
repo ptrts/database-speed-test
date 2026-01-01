@@ -10,10 +10,12 @@ import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfig
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
+import x.timer.BatchInsertTimerWrapper;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -25,6 +27,17 @@ public class BigTest {
 
     public static final Logger logger = LoggerFactory.getLogger(BigTest.class);
 
+    private static final int MAX_BATCH_SIZE = 100;
+
+    private static final int CAMPAIGNS_NUMBER = 4;
+    private static final int USERS_PER_CAMPAIGN = 100_000;
+    private static final int THREADS_NUMBER = 1;
+    private static final int MAX_CAMPAIGNS_PER_THREAD = (int) Math.ceil(1. * CAMPAIGNS_NUMBER / THREADS_NUMBER);
+
+    static {
+        logger.info("MAX_CAMPAIGNS_PER_THREAD={}", MAX_CAMPAIGNS_PER_THREAD);
+    }
+
     @Autowired
     private MessageJdbcRepository messageJdbcRepository;
 
@@ -33,6 +46,9 @@ public class BigTest {
 
     @Autowired
     private TransactionTemplate transactionTemplate;
+
+    @Autowired
+    private BatchInsertTimerWrapper batchInsertTimerWrapper;
 
     @Test
     @Tag("manual")
@@ -45,13 +61,6 @@ public class BigTest {
         long firstCampaignId = maxCampaignId + 1;
 
         logger.info("firstCampaignId={}", firstCampaignId);
-
-        int campaignsNumber = 4;
-        int usersPerCampaign = 100_000;
-        int threadsNumber = 1;
-        int maxCampaignsPerThread = (int) Math.ceil(1. * campaignsNumber / threadsNumber);
-
-        logger.info("maxCampaignsPerThread={}", maxCampaignsPerThread);
 
         logger.info("Generating campaign users...");
 
@@ -66,8 +75,8 @@ public class BigTest {
                     )
                     """,
                     firstCampaignId,
-                    campaignsNumber,
-                    usersPerCampaign
+                    CAMPAIGNS_NUMBER,
+                    USERS_PER_CAMPAIGN
             );
             return null;
         });
@@ -75,10 +84,10 @@ public class BigTest {
         logger.info("Campaign users has been generated");
 
         Stream<Runnable> writerThreadRunnables = IntStream
-                .range(0, threadsNumber)
+                .range(0, THREADS_NUMBER)
                 .mapToObj(threadIndex -> {
-                    int campaignIndexStart = threadIndex * maxCampaignsPerThread;
-                    int campaignIndexEnd = Math.min(campaignsNumber, campaignIndexStart + maxCampaignsPerThread);
+                    int campaignIndexStart = threadIndex * MAX_CAMPAIGNS_PER_THREAD;
+                    int campaignIndexEnd = Math.min(CAMPAIGNS_NUMBER, campaignIndexStart + MAX_CAMPAIGNS_PER_THREAD);
                     long campaignIdStart = firstCampaignId + campaignIndexStart;
                     long campaignIdEnd = firstCampaignId + campaignIndexEnd;
                     return () -> writerThread(campaignIdStart, campaignIdEnd);
@@ -116,7 +125,18 @@ public class BigTest {
     private void writeCampaign(long campaignId) {
         logger.info("campaignId={}", campaignId);
         logger.info("Querying...");
-        List<Message> messages = jdbcTemplate.query(
+
+        String topic = "Кампания " + campaignId;
+
+        String text =
+                Stream
+                        .generate(() ->
+                                "текст кампании " + campaignId
+                        )
+                        .limit(20)
+                        .collect(Collectors.joining(", "));
+
+        List<Long> userIds = jdbcTemplate.queryForList(
                 """
                 select
                     user_id
@@ -125,35 +145,34 @@ public class BigTest {
                 where
                     campaign_id = ?
                 """,
-                (rs, n) -> {
-
-                    Message message = new Message();
-                    message.id_uuid = UUID.randomUUID();
-                    message.campaign_id = campaignId;
-                    message.user_id = rs.getLong(1);
-                    message.topic = "Кампания " + campaignId;
-                    message.created = Instant.now();
-                    message.sent = null;
-                    message.deleted = null;
-
-                    message.text =
-                            Stream
-                                    .generate(() ->
-                                            "текст кампании " + campaignId
-                                    )
-                                    .limit(20)
-                                    .collect(Collectors.joining(", "));
-
-                    return message;
-                },
+                Long.class,
                 campaignId
         );
 
-        logger.info("Running batchInsert...");
+        logger.info("Saving batches...");
 
-        transactionTemplate.execute((status) -> {
-            messageJdbcRepository.batchInsert(messages, 100);
-            return null;
+        forEachBatch(userIds, MAX_BATCH_SIZE, (batchIndex, userIdsBatch) -> {
+            logger.info("Running batchInsert: batchIndex={}, size={}", batchIndex, userIdsBatch.size());
+
+            Instant created = Instant.now();
+
+            List<Message> messagesBatch = userIdsBatch
+                    .stream()
+                    .map(userId -> {
+                        Message message = new Message();
+                        message.id_uuid = UUID.randomUUID();
+                        message.campaign_id = campaignId;
+                        message.user_id = userId;
+                        message.topic = topic;
+                        message.text = text;
+                        message.created = created;
+                        message.sent = null;
+                        message.deleted = null;
+                        return message;
+                    })
+                    .toList();
+
+            saveMessagesBatch(messagesBatch, MAX_BATCH_SIZE);
         });
     }
 
@@ -173,5 +192,28 @@ public class BigTest {
 
     private @Nullable Long getMaxCampaignId() {
         return jdbcTemplate.queryForObject("select max(campaign_id) from campaign_users", Long.class);
+    }
+
+    private void saveMessagesBatch(List<Message> messagesBatch, int maxBatchSize) {
+        boolean fullBatch = messagesBatch.size() == maxBatchSize;
+        batchInsertTimerWrapper.withTimer(
+                () -> {
+                    transactionTemplate.execute(status -> {
+                        messageJdbcRepository.batchInsert(messagesBatch, messagesBatch.size());
+                        return null;
+                    });
+                },
+                "fullBatch",
+                fullBatch ? "1" : "0"
+        );
+    }
+
+    private <T> void forEachBatch(List<T> list, int batchSize, BiConsumer<Integer, List<T>> batchConsumer) {
+        int batchIndex = 0;
+        for (int i = 0; i < list.size(); i += batchSize) {
+            List<T> batch = list.subList(i, Math.min(i + batchSize, list.size()));
+            batchConsumer.accept(batchIndex, batch);
+            batchIndex++;
+        }
     }
 }

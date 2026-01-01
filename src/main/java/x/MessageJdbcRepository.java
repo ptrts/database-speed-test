@@ -49,14 +49,8 @@ public class MessageJdbcRepository {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @Autowired
-    private JdbcTemplateWrapper jdbcTemplateWrapper;
-
-    @Autowired
-    private BatchInsertTimerWrapper batchInsertTimerWrapper;
-
     public void batchInsert(List<Message> messages, int batchSize) {
-        jdbcTemplateWrapper.batchUpdate(
+        jdbcTemplate.batchUpdate(
                 """
                 insert into
                     message(id_uuid, campaign_id, user_id, topic, text, created, sent, deleted)
@@ -75,8 +69,7 @@ public class MessageJdbcRepository {
                     ps.setTimestamp (7, toDb(message.sent)    );
                     ps.setTimestamp (8, toDb(message.deleted) );
                     //@formatter:on
-                },
-                batchInsertTimerWrapper
+                }
         );
     }
     
