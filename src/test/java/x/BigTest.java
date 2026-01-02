@@ -13,6 +13,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 import x.timer.BatchInsertTimerWrapper;
 
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.BiConsumer;
@@ -50,6 +54,8 @@ public class BigTest {
     @Autowired
     private BatchInsertTimerWrapper batchInsertTimerWrapper;
 
+    private String runTimeStr;
+
     @Test
     @Tag("manual")
     public void test() {
@@ -82,6 +88,14 @@ public class BigTest {
         });
 
         logger.info("Campaign users has been generated");
+
+        runTimeStr =
+                ZonedDateTime
+                        .now(ZoneOffset.UTC)
+                        .truncatedTo(ChronoUnit.MINUTES)
+                        .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+
+        logger.info("runTimeStr={}", runTimeStr);
 
         Stream<Runnable> writerThreadRunnables = IntStream
                 .range(0, THREADS_NUMBER)
@@ -204,7 +218,9 @@ public class BigTest {
                     });
                 },
                 "fullBatch",
-                fullBatch ? "1" : "0"
+                fullBatch ? "1" : "0",
+                "runTime",
+                runTimeStr
         );
     }
 
