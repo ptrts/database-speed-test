@@ -24,7 +24,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-// todo Может быть нужно добавить больше потоков в контейнер с PG и настроить больше воркеров в самом PG.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
 @AutoConfigureMetrics
 public class BigTest {
@@ -33,14 +32,10 @@ public class BigTest {
 
     private static final int MAX_BATCH_SIZE = 128;
 
-    private static final int CAMPAIGNS_NUMBER = 4;
+    private static final int THREADS_NUMBER = 8;
+    private static final int CAMPAIGNS_PER_THREAD = 1;
+    private static final int CAMPAIGNS_NUMBER = THREADS_NUMBER * CAMPAIGNS_PER_THREAD;
     private static final int USERS_PER_CAMPAIGN = 100_000;
-    private static final int THREADS_NUMBER = 4;
-    private static final int MAX_CAMPAIGNS_PER_THREAD = (int) Math.ceil(1. * CAMPAIGNS_NUMBER / THREADS_NUMBER);
-
-    static {
-        logger.info("MAX_CAMPAIGNS_PER_THREAD={}", MAX_CAMPAIGNS_PER_THREAD);
-    }
 
     @Autowired
     private MessageJdbcRepository messageJdbcRepository;
@@ -100,8 +95,8 @@ public class BigTest {
         Stream<Runnable> writerThreadRunnables = IntStream
                 .range(0, THREADS_NUMBER)
                 .mapToObj(threadIndex -> {
-                    int campaignIndexStart = threadIndex * MAX_CAMPAIGNS_PER_THREAD;
-                    int campaignIndexEnd = Math.min(CAMPAIGNS_NUMBER, campaignIndexStart + MAX_CAMPAIGNS_PER_THREAD);
+                    int campaignIndexStart = threadIndex * CAMPAIGNS_PER_THREAD;
+                    int campaignIndexEnd = Math.min(CAMPAIGNS_NUMBER, campaignIndexStart + CAMPAIGNS_PER_THREAD);
                     long campaignIdStart = firstCampaignId + campaignIndexStart;
                     long campaignIdEnd = firstCampaignId + campaignIndexEnd;
                     return () -> writerThread(campaignIdStart, campaignIdEnd);
