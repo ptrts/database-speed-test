@@ -31,11 +31,11 @@ public class BigTest {
 
     public static final Logger logger = LoggerFactory.getLogger(BigTest.class);
 
-    private static final int MAX_BATCH_SIZE = 100;
+    private static final int MAX_BATCH_SIZE = 128;
 
     private static final int CAMPAIGNS_NUMBER = 4;
     private static final int USERS_PER_CAMPAIGN = 100_000;
-    private static final int THREADS_NUMBER = 1;
+    private static final int THREADS_NUMBER = 4;
     private static final int MAX_CAMPAIGNS_PER_THREAD = (int) Math.ceil(1. * CAMPAIGNS_NUMBER / THREADS_NUMBER);
 
     static {
@@ -217,10 +217,10 @@ public class BigTest {
                         return null;
                     });
                 },
-                "fullBatch",
-                fullBatch ? "1" : "0",
-                "runTime",
-                runTimeStr
+                "fullBatch", fullBatch ? "1" : "0",
+                "runTime", runTimeStr,
+                "threadsNumber", String.valueOf(THREADS_NUMBER),
+                "maxBatchSize", String.valueOf(MAX_BATCH_SIZE)
         );
     }
 
