@@ -10,6 +10,9 @@ import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfig
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
+import x.batch.MessageBatchInserter;
+import x.batch.TraditionalMessageBatchInserter;
+import x.batch.UnnestMessageBatchInserter;
 import x.timer.BatchInsertTimerWrapper;
 
 import java.time.Instant;
@@ -31,14 +34,23 @@ public class BigTest {
     public static final Logger logger = LoggerFactory.getLogger(BigTest.class);
 
     private static final int MAX_BATCH_SIZE = 128;
+    private static final boolean UNNEST = false;
 
-    private static final int THREADS_NUMBER = 8;
+    private static final int THREADS_NUMBER = 1;
     private static final int CAMPAIGNS_PER_THREAD = 1;
     private static final int CAMPAIGNS_NUMBER = THREADS_NUMBER * CAMPAIGNS_PER_THREAD;
     private static final int USERS_PER_CAMPAIGN = 100_000;
+    private static final int USERS_NUMBER = 1_000_000;
+    private static final int MESSAGE_TABLE_SIZE = 70_000_000;
 
     @Autowired
     private MessageJdbcRepository messageJdbcRepository;
+
+    @Autowired
+    private TraditionalMessageBatchInserter traditionalMessageBatchInserter;
+
+    @Autowired
+    private UnnestMessageBatchInserter unnestMessageBatchInserter;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -51,12 +63,17 @@ public class BigTest {
 
     private String runTimeStr;
 
+    private MessageBatchInserter messageBatchInserter;
+
     @Test
     @Tag("manual")
     public void test() {
+
+        messageBatchInserter = UNNEST ? unnestMessageBatchInserter : traditionalMessageBatchInserter;
+
         Long maxCampaignId = getMaxCampaignId();
         if (maxCampaignId == null) {
-            maxCampaignId = -1L;
+            maxCampaignId = 0L;
         }
 
         long firstCampaignId = maxCampaignId + 1;
@@ -72,12 +89,14 @@ public class BigTest {
                     call gen_campaign_users(
                         p_start_campaign_id => ?::bigint,
                         p_campaigns_number => ?::int,
-                        p_users_per_campaign => ?::int
+                        p_users_per_campaign => ?::int,
+                        p_users_number => ?::int
                     )
                     """,
                     firstCampaignId,
                     CAMPAIGNS_NUMBER,
-                    USERS_PER_CAMPAIGN
+                    USERS_PER_CAMPAIGN,
+                    USERS_NUMBER
             );
             return null;
         });
@@ -208,14 +227,16 @@ public class BigTest {
         batchInsertTimerWrapper.withTimer(
                 () -> {
                     transactionTemplate.execute(status -> {
-                        messageJdbcRepository.batchInsert(messagesBatch, messagesBatch.size());
+                        messageBatchInserter.batchInsert(messagesBatch, messagesBatch.size());
                         return null;
                     });
                 },
-                "fullBatch", fullBatch ? "1" : "0",
                 "runTime", runTimeStr,
+                "messageTableSize", String.valueOf(MESSAGE_TABLE_SIZE),
                 "threadsNumber", String.valueOf(THREADS_NUMBER),
-                "maxBatchSize", String.valueOf(MAX_BATCH_SIZE)
+                "maxBatchSize", String.valueOf(MAX_BATCH_SIZE),
+                "fullBatch", fullBatch ? "1" : "0",
+                "unnest", String.valueOf(UNNEST)
         );
     }
 

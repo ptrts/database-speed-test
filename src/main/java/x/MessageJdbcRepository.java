@@ -1,13 +1,10 @@
 package x;
 
-import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Component;
 
-import java.sql.Timestamp;
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -39,9 +36,9 @@ public class MessageJdbcRepository {
         message.user_id     = rs.getLong   (4);
         message.topic       = rs.getString (5);
         message.text        = rs.getString (6);
-        message.created     = fromDb(rs.getTimestamp(7));
-        message.sent        = fromDb(rs.getTimestamp(8));
-        message.deleted     = fromDb(rs.getTimestamp(9));
+        message.created     = DbConverter.fromDb(rs.getTimestamp(7));
+        message.sent        = DbConverter.fromDb(rs.getTimestamp(8));
+        message.deleted     = DbConverter.fromDb(rs.getTimestamp(9));
         //@formatter:on
         return message;
     };
@@ -49,30 +46,6 @@ public class MessageJdbcRepository {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    public void batchInsert(List<Message> messages, int batchSize) {
-        jdbcTemplate.batchUpdate(
-                """
-                insert into
-                    message(id_uuid, campaign_id, user_id, topic, text, created, sent, deleted)
-                    values (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                messages,
-                batchSize,
-                (ps, message) -> {
-                    //@formatter:off
-                    ps.setObject    (1, message.id_uuid       );
-                    ps.setLong      (2, message.campaign_id   );
-                    ps.setLong      (3, message.user_id       );
-                    ps.setString    (4, message.topic         );
-                    ps.setString    (5, message.text          );
-                    ps.setTimestamp (6, toDb(message.created) );
-                    ps.setTimestamp (7, toDb(message.sent)    );
-                    ps.setTimestamp (8, toDb(message.deleted) );
-                    //@formatter:on
-                }
-        );
-    }
-    
     public Message find(Long id_bigint) {
         return jdbcTemplate.queryForObject(
                 SELECT_FROM +
@@ -95,21 +68,5 @@ public class MessageJdbcRepository {
                 ROW_MAPPER,
                 user_id
         );
-    }
-
-    private Timestamp toDb(@Nullable Instant instant) {
-        if (instant == null) {
-            return null;
-        } else {
-            return Timestamp.from(instant);
-        }
-    }
-
-    private Instant fromDb(@Nullable Timestamp timestamp) {
-        if (timestamp == null) {
-            return null;
-        } else {
-            return timestamp.toInstant();
-        }
     }
 }

@@ -7,7 +7,7 @@ alter table message
     drop constraint message_pkey;
 
 call gen_campaign_users(
-    p_start_campaign_id => 0,
+    p_start_campaign_id => 1,
     p_campaigns_number => 700,
     p_users_per_campaign => 100000,
     p_users_number => 1000000

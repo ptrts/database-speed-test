@@ -43,6 +43,11 @@ $$;
 
 call fill_messages();
 
+vacuum (analyze) message;
+
+select max(id_bigint) from message;
+select max(campaign_id) from message;
+
 select campaign_id, count(*) c from message group by campaign_id;
 select campaign_id, user_id c from message order by campaign_id, user_id;
 

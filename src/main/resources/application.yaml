@@ -8,7 +8,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/database_speed_test
     username: postgres
-    password: 123456
+    password: 12345
     driver-class-name: org.postgresql.Driver
 
     hikari:
@@ -22,6 +22,7 @@ spring:
       auto-commit: false
       data-source-properties:
         reWriteBatchedInserts: true
+        prepareThreshold: 1
 
   jpa:
     open-in-view: false

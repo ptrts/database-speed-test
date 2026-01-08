@@ -1,17 +1,16 @@
 create or replace procedure gen_campaign_users(
-    p_start_campaign_id  bigint default 0,
-    p_campaigns_number   int default 100,
-    p_users_per_campaign int default 10000,
-    p_users_number       int default 100000
+    p_start_campaign_id  bigint,
+    p_campaigns_number   int,
+    p_users_per_campaign int,
+    p_users_number       int
 )
     language plpgsql
 as
 $$
 declare
-    c_batch_max_size     constant int    := 20000;
+    c_batch_max_size constant int := 20000;
     i                             int;
     current_campaign_id           bigint;
-    campaign_users_count          int;
     campaign_users_to_add         int;
     batch_size                    int;
     inserted_rows_count           int;
@@ -20,15 +19,8 @@ begin
         loop
             current_campaign_id := p_start_campaign_id + i;
             --raise notice 'current_campaign_id=%', current_campaign_id;
-            select
-                count(*)
-            into campaign_users_count
-            from
-                campaign_users
-            where
-                campaign_id = current_campaign_id;
 
-            campaign_users_to_add := p_users_per_campaign - campaign_users_count;
+            campaign_users_to_add := p_users_per_campaign;
             if campaign_users_to_add <= 0 then
                 continue;
             end if;
@@ -54,7 +46,23 @@ begin
 end;
 $$;
 
-call gen_campaign_users();
+-- Пробное наполнение на 1 000 000 записей
+call gen_campaign_users(
+    p_start_campaign_id => 1,
+    p_campaigns_number => 100,
+    p_users_per_campaign => 10000,
+    p_users_number => 100000
+);
+
+-- Пробное наполнение на 70 000 000 записей
+call gen_campaign_users(
+    p_start_campaign_id => 1,
+    p_campaigns_number => 700,
+    p_users_per_campaign => 100000,
+    p_users_number => 1000000
+);
 
 select campaign_id, count(*) c from campaign_users group by campaign_id;
-select user_id from campaign_users where campaign_id = 0;
+select user_id from campaign_users where campaign_id = 1;
+
+vacuum (analyze) campaign_users;
