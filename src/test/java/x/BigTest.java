@@ -8,13 +8,18 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfigureMetrics;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.StatementCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 import x.batch.MessageBatchInserter;
 import x.batch.TraditionalMessageBatchInserter;
 import x.batch.UnnestMessageBatchInserter;
 import x.timer.BatchInsertTimerWrapper;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.Statement;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -33,7 +38,7 @@ public class BigTest {
 
     public static final Logger logger = LoggerFactory.getLogger(BigTest.class);
 
-    private static final int MAX_BATCH_SIZE = 128;
+    private static final int MAX_BATCH_SIZE = 1024;
     private static final boolean UNNEST = false;
 
     private static final int THREADS_NUMBER = 1;
@@ -53,6 +58,9 @@ public class BigTest {
     private UnnestMessageBatchInserter unnestMessageBatchInserter;
 
     @Autowired
+    private DataSource dataSource;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
@@ -65,11 +73,34 @@ public class BigTest {
 
     private MessageBatchInserter messageBatchInserter;
 
+    private void execute(StatementCallback<?> action) throws DataAccessException {
+        try (Connection connection = dataSource.getConnection()) {
+            connection.setAutoCommit(true);
+            try (Statement statement = connection.createStatement()) {
+                action.doInStatement(statement);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     @Test
     @Tag("manual")
     public void test() {
 
         messageBatchInserter = UNNEST ? unnestMessageBatchInserter : traditionalMessageBatchInserter;
+
+        logger.info("vacuum (analyze) message");
+        execute(st -> {
+            st.execute("vacuum (analyze) message");
+            return null;
+        });
+
+        logger.info("vacuum (analyze) campaign_users");
+        execute(st -> {
+            st.execute("vacuum (analyze) campaign_users");
+            return null;
+        });
 
         Long maxCampaignId = getMaxCampaignId();
         if (maxCampaignId == null) {
