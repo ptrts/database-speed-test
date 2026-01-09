@@ -50,17 +50,6 @@ public class UnnestMessageBatchInserter implements MessageBatchInserter {
             //@formatter:on
         }
 
-        //@formatter:off
-        Array array_id_uuid     = createArrayOf("uuid"        , java_array_id_uuid     );
-        Array array_user_id     = createArrayOf("bigint"      , java_array_user_id     );
-        Array array_campaign_id = createArrayOf("bigint"      , java_array_campaign_id );
-        Array array_topic       = createArrayOf("varchar"     , java_array_topic       );
-        Array array_text        = createArrayOf("varchar"     , java_array_text        );
-        Array array_created     = createArrayOf("timestamptz" , java_array_created     );
-        Array array_sent        = createArrayOf("timestamptz" , java_array_sent        );
-        Array array_deleted     = createArrayOf("timestamptz" , java_array_deleted     );
-        //@formatter:on
-
         jdbcTemplate.execute(
                 """
                 insert into
@@ -89,6 +78,20 @@ public class UnnestMessageBatchInserter implements MessageBatchInserter {
                         )
                 """,
                 (PreparedStatement ps) -> {
+
+                    Connection connection = ps.getConnection();
+
+                    //@formatter:off
+                    Array array_id_uuid     = connection.createArrayOf("uuid"        , java_array_id_uuid     );
+                    Array array_user_id     = connection.createArrayOf("bigint"      , java_array_user_id     );
+                    Array array_campaign_id = connection.createArrayOf("bigint"      , java_array_campaign_id );
+                    Array array_topic       = connection.createArrayOf("varchar"     , java_array_topic       );
+                    Array array_text        = connection.createArrayOf("varchar"     , java_array_text        );
+                    Array array_created     = connection.createArrayOf("timestamptz" , java_array_created     );
+                    Array array_sent        = connection.createArrayOf("timestamptz" , java_array_sent        );
+                    Array array_deleted     = connection.createArrayOf("timestamptz" , java_array_deleted     );
+                    //@formatter:on
+
                     //@formatter:off
                     ps.setArray(1, array_id_uuid);
                     ps.setArray(2, array_campaign_id);
