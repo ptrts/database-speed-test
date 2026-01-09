@@ -90,6 +90,19 @@ public class BigTest {
 
         messageBatchInserter = UNNEST ? unnestMessageBatchInserter : traditionalMessageBatchInserter;
 
+        logger.info("rollback_messages...");
+        transactionTemplate.execute((status) -> {
+            jdbcTemplate.update(
+                    """
+                    call rollback_messages(
+                        p_campaigns_number => 700,
+                        p_users_per_campaign => 100000
+                    )
+                    """
+            );
+            return null;
+        });
+
         logger.info("vacuum (analyze) message");
         execute(st -> {
             st.execute("vacuum (analyze) message");
