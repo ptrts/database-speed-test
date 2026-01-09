@@ -39,7 +39,7 @@ public class BigTest {
     public static final Logger logger = LoggerFactory.getLogger(BigTest.class);
 
     private static final int MAX_BATCH_SIZE = 1024;
-    private static final boolean UNNEST = false;
+    private static final boolean UNNEST = true;
 
     private static final int THREADS_NUMBER = 1;
     private static final int CAMPAIGNS_PER_THREAD = 1;
