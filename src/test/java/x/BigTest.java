@@ -13,7 +13,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.StatementCallback;
 import org.springframework.transaction.support.TransactionTemplate;
-import x.reader.ListByUserMessagesTimerWrapper;
+import x.reader.ReadMessagesTimerWrapper;
 import x.reader.MessageReader;
 import x.reader.MessageReaderSelector;
 import x.reader.MessageReaderType;
@@ -45,21 +45,23 @@ public class BigTest {
 
     public static final Logger logger = LoggerFactory.getLogger(BigTest.class);
 
-    private static final int MAX_BATCH_SIZE = 1024;
-
-    private static final int WRITER_THREADS_NUMBER = 1;
-    private static final int CAMPAIGNS_PER_THREAD = 1;
-    private static final int CAMPAIGNS_NUMBER = WRITER_THREADS_NUMBER * CAMPAIGNS_PER_THREAD;
-    private static final int USERS_PER_CAMPAIGN = 100_000;
     private static final int USERS_NUMBER = 1_000_000;
     private static final int MESSAGE_TABLE_SIZE = 70_000_000;
 
+    private static final int WRITER_THREADS_NUMBER = 1;
     private static final int READER_THREADS_NUMBER = 1;
 
     //private static final MessageWriterType MESSAGE_WRITER_TYPE = MessageWriterType.JDBC_UNNEST;
     private static final MessageWriterType MESSAGE_WRITER_TYPE = MessageWriterType.JDBC_REWRITE_BATCHED_INSERTS;
 
-    private static final MessageReaderType MESSAGE_READER_TYPE = MessageReaderType.SPRING_DATA_JPA;
+    private static final MessageReaderType MESSAGE_READER_TYPE = MessageReaderType.JDBC;
+
+    private static final MessagesReadType READ_TYPE = MessagesReadType.ROW;
+
+    private static final int CAMPAIGNS_PER_THREAD = 1;
+    private static final int CAMPAIGNS_NUMBER = WRITER_THREADS_NUMBER * CAMPAIGNS_PER_THREAD;
+    private static final int USERS_PER_CAMPAIGN = 100_000;
+    private static final int MAX_BATCH_SIZE = 1024;
 
     @Autowired
     private MessageWriterSelector messageWriterSelector;
@@ -80,13 +82,15 @@ public class BigTest {
     private BatchInsertTimerWrapper batchInsertTimerWrapper;
 
     @Autowired
-    private ListByUserMessagesTimerWrapper listByUserMessagesTimerWrapper;
+    private ReadMessagesTimerWrapper readMessagesTimerWrapper;
 
     private List<Tag> constantTags;
 
     private MessageWriter messageWriter;
 
     private MessageReader messageReader;
+
+    private Runnable readRunnable;
 
     private void execute(StatementCallback<?> action) throws DataAccessException {
         try (Connection connection = dataSource.getConnection()) {
@@ -105,6 +109,13 @@ public class BigTest {
 
         messageWriter = messageWriterSelector.get(MESSAGE_WRITER_TYPE);
         messageReader = messageReaderSelector.get(MESSAGE_READER_TYPE);
+
+        switch (READ_TYPE) {
+            case ROW -> readRunnable = this::readRandomMessage;
+            case LIST -> readRunnable = this::readRandomUserMessages;
+            default -> throw new RuntimeException("Unexpected value " + READ_TYPE);
+        }
+
 
         logger.info("rollback_messages...");
         transactionTemplate.execute((status) -> {
@@ -176,7 +187,8 @@ public class BigTest {
                 new ImmutableTag("threadsNumber", String.valueOf(WRITER_THREADS_NUMBER)),
                 new ImmutableTag("maxBatchSize", String.valueOf(MAX_BATCH_SIZE)),
                 new ImmutableTag("writer", MESSAGE_WRITER_TYPE.name()),
-                new ImmutableTag("reader", MESSAGE_READER_TYPE.name())
+                new ImmutableTag("reader", MESSAGE_READER_TYPE.name()),
+                new ImmutableTag("readType", READ_TYPE.name())
         );
 
         Stream<Runnable> writerThreadRunnables = IntStream
@@ -207,18 +219,29 @@ public class BigTest {
     private void readerThread() {
         logger.info("start");
         while (true) {
-            long userId = ThreadLocalRandom.current().nextLong(1, USERS_NUMBER + 1);
-
-            List<Message> messages = listByUserMessagesTimerWrapper.withTimer(
-                    () -> messageReader.listByUser(userId),
-                    constantTags
-            );
-
-            //noinspection ResultOfMethodCallIgnored
-            messages.size();
-
+            readRunnable.run();
             if (Thread.interrupted()) return;
         }
+    }
+
+    private void readRandomUserMessages() {
+        long userId = ThreadLocalRandom.current().nextLong(1, USERS_NUMBER + 1);
+
+        @SuppressWarnings("unused")
+        List<Message> messages = readMessagesTimerWrapper.withTimer(
+                () -> messageReader.listByUser(userId),
+                constantTags
+        );
+    }
+
+    private void readRandomMessage() {
+        long messageId = ThreadLocalRandom.current().nextLong(1, MESSAGE_TABLE_SIZE + 1);
+
+        @SuppressWarnings("unused")
+        Message message = readMessagesTimerWrapper.withTimer(
+                () -> messageReader.findByIdBigint(messageId),
+                constantTags
+        );
     }
 
     private void writerThread(long campaignIdStart, long campaignIdEnd) {

@@ -20,4 +20,7 @@ public interface SpringDataJpaMessageReader extends JpaRepository<Message, Long>
     }
 
     List<Message> findByUserIdOrderByCreated(Long userId);
+
+    @Override
+    Message findByIdBigint(Long idBigint);
 }

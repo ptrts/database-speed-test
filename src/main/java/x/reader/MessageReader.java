@@ -10,7 +10,5 @@ public interface MessageReader {
 
     List<Message> listByUser(Long userId);
 
-    default Message findByIdBigint(Long idBigint) {
-        throw new RuntimeException("Not implemented");
-    }
+    Message findByIdBigint(Long idBigint);
 }
