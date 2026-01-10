@@ -9,10 +9,15 @@ import x.Message;
 import java.util.List;
 
 @Component
-public class TraditionalMessageBatchInserter implements MessageBatchInserter {
+public class JdbcRewriteBatchedInsertsMessageWriter implements MessageWriter {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Override
+    public MessageWriterType getType() {
+        return MessageWriterType.JDBC_REWRITE_BATCHED_INSERTS;
+    }
 
     public void batchInsert(List<Message> messages, int batchSize) {
         jdbcTemplate.batchUpdate(

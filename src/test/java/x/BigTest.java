@@ -13,13 +13,14 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.StatementCallback;
 import org.springframework.transaction.support.TransactionTemplate;
-import x.reader.JdbcMessageReader;
-import x.reader.JpaMessageReader;
-import x.writer.MessageBatchInserter;
-import x.writer.TraditionalMessageBatchInserter;
-import x.writer.UnnestMessageBatchInserter;
-import x.writer.BatchInsertTimerWrapper;
 import x.reader.ListByUserMessagesTimerWrapper;
+import x.reader.MessageReader;
+import x.reader.MessageReaderSelector;
+import x.reader.MessageReaderType;
+import x.writer.BatchInsertTimerWrapper;
+import x.writer.MessageWriter;
+import x.writer.MessageWriterSelector;
+import x.writer.MessageWriterType;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -45,7 +46,6 @@ public class BigTest {
     public static final Logger logger = LoggerFactory.getLogger(BigTest.class);
 
     private static final int MAX_BATCH_SIZE = 1024;
-    private static final boolean UNNEST = false;
 
     private static final int WRITER_THREADS_NUMBER = 1;
     private static final int CAMPAIGNS_PER_THREAD = 1;
@@ -56,11 +56,16 @@ public class BigTest {
 
     private static final int READER_THREADS_NUMBER = 5;
 
-    @Autowired
-    private TraditionalMessageBatchInserter traditionalMessageBatchInserter;
+    //private static final MessageWriterType MESSAGE_WRITER_TYPE = MessageWriterType.JDBC_UNNEST;
+    private static final MessageWriterType MESSAGE_WRITER_TYPE = MessageWriterType.JDBC_REWRITE_BATCHED_INSERTS;
+
+    private static final MessageReaderType MESSAGE_READER_TYPE = MessageReaderType.SPRING_DATA_JPA;
 
     @Autowired
-    private UnnestMessageBatchInserter unnestMessageBatchInserter;
+    private MessageWriterSelector messageWriterSelector;
+
+    @Autowired
+    private MessageReaderSelector messageReaderSelector;
 
     @Autowired
     private DataSource dataSource;
@@ -77,15 +82,11 @@ public class BigTest {
     @Autowired
     private ListByUserMessagesTimerWrapper listByUserMessagesTimerWrapper;
 
-    @Autowired
-    private JpaMessageReader jpaMessageReader;
-
-    @Autowired
-    private JdbcMessageReader jdbcMessageReader;
-
     private List<Tag> constantTags;
 
-    private MessageBatchInserter messageBatchInserter;
+    private MessageWriter messageWriter;
+
+    private MessageReader messageReader;
 
     private void execute(StatementCallback<?> action) throws DataAccessException {
         try (Connection connection = dataSource.getConnection()) {
@@ -102,7 +103,8 @@ public class BigTest {
     @org.junit.jupiter.api.Tag("manual")
     public void test() {
 
-        messageBatchInserter = UNNEST ? unnestMessageBatchInserter : traditionalMessageBatchInserter;
+        messageWriter = messageWriterSelector.get(MESSAGE_WRITER_TYPE);
+        messageReader = messageReaderSelector.get(MESSAGE_READER_TYPE);
 
         logger.info("rollback_messages...");
         transactionTemplate.execute((status) -> {
@@ -173,7 +175,8 @@ public class BigTest {
                 new ImmutableTag("messageTableSize", String.valueOf(MESSAGE_TABLE_SIZE)),
                 new ImmutableTag("threadsNumber", String.valueOf(WRITER_THREADS_NUMBER)),
                 new ImmutableTag("maxBatchSize", String.valueOf(MAX_BATCH_SIZE)),
-                new ImmutableTag("unnest", String.valueOf(UNNEST))
+                new ImmutableTag("writer", MESSAGE_WRITER_TYPE.name()),
+                new ImmutableTag("reader", MESSAGE_READER_TYPE.name())
         );
 
         Stream<Runnable> writerThreadRunnables = IntStream
@@ -204,7 +207,7 @@ public class BigTest {
             long userId = ThreadLocalRandom.current().nextLong(1, USERS_NUMBER + 1);
 
             List<Message> messages = listByUserMessagesTimerWrapper.withTimer(
-                    () -> jpaMessageReader.findByUserIdOrderByCreated(userId),
+                    () -> messageReader.listByUser(userId),
                     constantTags
             );
 
@@ -306,7 +309,7 @@ public class BigTest {
         batchInsertTimerWrapper.withTimer(
                 () -> {
                     transactionTemplate.execute(status -> {
-                        messageBatchInserter.batchInsert(messagesBatch, messagesBatch.size());
+                        messageWriter.batchInsert(messagesBatch, messagesBatch.size());
                         return null;
                     });
                 },

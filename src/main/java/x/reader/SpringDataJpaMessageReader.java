@@ -7,11 +7,17 @@ import x.Message;
 import java.util.List;
 
 @Repository
-public interface JpaMessageReader extends JpaRepository<Message, Long>, MessageReader  {
+public interface SpringDataJpaMessageReader extends JpaRepository<Message, Long>, MessageReader  {
 
-    List<Message> findByUserIdOrderByCreated(Long userId);
+    @Override
+    default MessageReaderType getType() {
+        return MessageReaderType.SPRING_DATA_JPA;
+    }
 
+    @Override
     default List<Message> listByUser(Long userId) {
         return findByUserIdOrderByCreated(userId);
     }
+
+    List<Message> findByUserIdOrderByCreated(Long userId);
 }

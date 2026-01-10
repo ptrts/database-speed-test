@@ -48,6 +48,11 @@ public class JdbcMessageReader implements MessageReader {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Override
+    public MessageReaderType getType() {
+        return MessageReaderType.JDBC;
+    }
+
     @SuppressWarnings("UnusedReturnValue")
     @Override
     public List<Message> listByUser(Long userId) {

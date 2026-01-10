@@ -14,10 +14,15 @@ import java.util.List;
 import java.util.UUID;
 
 @Component
-public class UnnestMessageBatchInserter implements MessageBatchInserter {
+public class JdbcUnnestMessageWriter implements MessageWriter {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Override
+    public MessageWriterType getType() {
+        return MessageWriterType.JDBC_UNNEST;
+    }
 
     @Override
     public void batchInsert(List<Message> messages, int batchSize) {
