@@ -165,7 +165,7 @@ public class BigTest {
 
         String runTimeStr = ZonedDateTime
                 .now(ZoneOffset.UTC)
-                .truncatedTo(ChronoUnit.MINUTES)
+                .truncatedTo(ChronoUnit.SECONDS)
                 .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
         logger.info("runTimeStr={}", runTimeStr);
