@@ -1,4 +1,4 @@
-package x.batch;
+package x.writer;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -39,9 +39,9 @@ public class UnnestMessageBatchInserter implements MessageBatchInserter {
             Message message = messages.get(i);
 
             //@formatter:off
-            java_array_id_uuid     [i] = message.id_uuid;
-            java_array_user_id     [i] = message.user_id;
-            java_array_campaign_id [i] = message.campaign_id;
+            java_array_id_uuid     [i] = message.idUuid;
+            java_array_user_id     [i] = message.userId;
+            java_array_campaign_id [i] = message.campaignId;
             java_array_topic       [i] = message.topic;
             java_array_text        [i] = message.text;
             java_array_created     [i] = DbConverter.toDb(message.created);

@@ -1,15 +1,17 @@
-package x;
+package x.reader;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Component;
+import x.DbConverter;
+import x.Message;
 
 import java.util.List;
 import java.util.UUID;
 
 @Component
-public class MessageJdbcRepository {
+public class JdbcMessageReader implements MessageReader {
 
     private final String SELECT_FROM =
             """
@@ -30,10 +32,10 @@ public class MessageJdbcRepository {
     private final RowMapper<Message> ROW_MAPPER = (rs, rowNum) -> {
         Message message = new Message();
         //@formatter:off
-        message.id_bigint   = rs.getLong   (1);
-        message.id_uuid     = rs.getObject (2, UUID.class);
-        message.campaign_id = rs.getLong   (3);
-        message.user_id     = rs.getLong   (4);
+        message.idBigint   = rs.getLong    (1);
+        message.idUuid     = rs.getObject  (2, UUID.class);
+        message.campaignId = rs.getLong    (3);
+        message.userId     = rs.getLong    (4);
         message.topic       = rs.getString (5);
         message.text        = rs.getString (6);
         message.created     = DbConverter.fromDb(rs.getTimestamp(7));
@@ -46,7 +48,24 @@ public class MessageJdbcRepository {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    public Message find(Long id_bigint) {
+    @SuppressWarnings("UnusedReturnValue")
+    @Override
+    public List<Message> listByUser(Long userId) {
+        return jdbcTemplate.query(
+                SELECT_FROM +
+                """
+                where
+                    user_id = ?
+                order by
+                    created
+                """,
+                ROW_MAPPER,
+                userId
+        );
+    }
+
+    @Override
+    public Message findByIdBigint(Long idBigint) {
         return jdbcTemplate.queryForObject(
                 SELECT_FROM +
                 """
@@ -54,19 +73,7 @@ public class MessageJdbcRepository {
                     id_bigint = ?
                 """,
                 ROW_MAPPER,
-                id_bigint
-        );
-    }
-
-    public List<Message> getUserMessages(Long user_id) {
-        return jdbcTemplate.query(
-                SELECT_FROM +
-                """
-                where
-                    user_id = ?
-                """,
-                ROW_MAPPER,
-                user_id
+                idBigint
         );
     }
 }

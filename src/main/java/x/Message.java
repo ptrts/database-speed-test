@@ -18,18 +18,18 @@ public class Message {
     @SequenceGenerator(name = "message_id_bigint_seq", allocationSize = 1)
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "message_id_bigint_seq")
     @org.hibernate.annotations.ColumnDefault("nextval('message_id_bigint_seq')")
-    public Long id_bigint;
+    public Long idBigint;
 
     //@Id
     //@GeneratedValue(strategy = GenerationType.UUID)
     @Column(nullable = false)
-    public UUID id_uuid;
+    public UUID idUuid;
 
     @Column(nullable = false)
-    public Long user_id;
+    public Long userId;
 
     @Column(nullable = false)
-    public Long campaign_id;
+    public Long campaignId;
 
     @Column(nullable = false, length = 128)
     public String topic;

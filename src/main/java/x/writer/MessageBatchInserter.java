@@ -1,4 +1,4 @@
-package x.batch;
+package x.writer;
 
 import x.Message;
 

@@ -1,7 +1,8 @@
 package x;
 
+import io.micrometer.core.instrument.ImmutableTag;
+import io.micrometer.core.instrument.Tag;
 import org.jspecify.annotations.Nullable;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,10 +13,13 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.StatementCallback;
 import org.springframework.transaction.support.TransactionTemplate;
-import x.batch.MessageBatchInserter;
-import x.batch.TraditionalMessageBatchInserter;
-import x.batch.UnnestMessageBatchInserter;
-import x.timer.BatchInsertTimerWrapper;
+import x.reader.JdbcMessageReader;
+import x.reader.JpaMessageReader;
+import x.writer.MessageBatchInserter;
+import x.writer.TraditionalMessageBatchInserter;
+import x.writer.UnnestMessageBatchInserter;
+import x.writer.BatchInsertTimerWrapper;
+import x.reader.ListByUserMessagesTimerWrapper;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -25,8 +29,10 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -39,17 +45,16 @@ public class BigTest {
     public static final Logger logger = LoggerFactory.getLogger(BigTest.class);
 
     private static final int MAX_BATCH_SIZE = 1024;
-    private static final boolean UNNEST = true;
+    private static final boolean UNNEST = false;
 
-    private static final int THREADS_NUMBER = 1;
+    private static final int WRITER_THREADS_NUMBER = 1;
     private static final int CAMPAIGNS_PER_THREAD = 1;
-    private static final int CAMPAIGNS_NUMBER = THREADS_NUMBER * CAMPAIGNS_PER_THREAD;
+    private static final int CAMPAIGNS_NUMBER = WRITER_THREADS_NUMBER * CAMPAIGNS_PER_THREAD;
     private static final int USERS_PER_CAMPAIGN = 100_000;
     private static final int USERS_NUMBER = 1_000_000;
     private static final int MESSAGE_TABLE_SIZE = 70_000_000;
 
-    @Autowired
-    private MessageJdbcRepository messageJdbcRepository;
+    private static final int READER_THREADS_NUMBER = 5;
 
     @Autowired
     private TraditionalMessageBatchInserter traditionalMessageBatchInserter;
@@ -69,7 +74,16 @@ public class BigTest {
     @Autowired
     private BatchInsertTimerWrapper batchInsertTimerWrapper;
 
-    private String runTimeStr;
+    @Autowired
+    private ListByUserMessagesTimerWrapper listByUserMessagesTimerWrapper;
+
+    @Autowired
+    private JpaMessageReader jpaMessageReader;
+
+    @Autowired
+    private JdbcMessageReader jdbcMessageReader;
+
+    private List<Tag> constantTags;
 
     private MessageBatchInserter messageBatchInserter;
 
@@ -85,7 +99,7 @@ public class BigTest {
     }
 
     @Test
-    @Tag("manual")
+    @org.junit.jupiter.api.Tag("manual")
     public void test() {
 
         messageBatchInserter = UNNEST ? unnestMessageBatchInserter : traditionalMessageBatchInserter;
@@ -147,16 +161,23 @@ public class BigTest {
 
         logger.info("Campaign users has been generated");
 
-        runTimeStr =
-                ZonedDateTime
-                        .now(ZoneOffset.UTC)
-                        .truncatedTo(ChronoUnit.MINUTES)
-                        .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        String runTimeStr = ZonedDateTime
+                .now(ZoneOffset.UTC)
+                .truncatedTo(ChronoUnit.MINUTES)
+                .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
         logger.info("runTimeStr={}", runTimeStr);
 
+        constantTags = List.of(
+                new ImmutableTag("runTime", runTimeStr),
+                new ImmutableTag("messageTableSize", String.valueOf(MESSAGE_TABLE_SIZE)),
+                new ImmutableTag("threadsNumber", String.valueOf(WRITER_THREADS_NUMBER)),
+                new ImmutableTag("maxBatchSize", String.valueOf(MAX_BATCH_SIZE)),
+                new ImmutableTag("unnest", String.valueOf(UNNEST))
+        );
+
         Stream<Runnable> writerThreadRunnables = IntStream
-                .range(0, THREADS_NUMBER)
+                .range(0, WRITER_THREADS_NUMBER)
                 .mapToObj(threadIndex -> {
                     int campaignIndexStart = threadIndex * CAMPAIGNS_PER_THREAD;
                     int campaignIndexEnd = Math.min(CAMPAIGNS_NUMBER, campaignIndexStart + CAMPAIGNS_PER_THREAD);
@@ -166,7 +187,7 @@ public class BigTest {
                 });
 
         Stream<Runnable> readerThreadRunnables = IntStream
-                .range(0, 0)
+                .range(0, READER_THREADS_NUMBER)
                 .mapToObj(it -> this::readerThread);
 
         logger.info("Running threads");
@@ -180,7 +201,16 @@ public class BigTest {
     private void readerThread() {
         logger.info("start");
         while (true) {
-            messageJdbcRepository.getUserMessages(55L);
+            long userId = ThreadLocalRandom.current().nextLong(1, USERS_NUMBER + 1);
+
+            List<Message> messages = listByUserMessagesTimerWrapper.withTimer(
+                    () -> jpaMessageReader.findByUserIdOrderByCreated(userId),
+                    constantTags
+            );
+
+            //noinspection ResultOfMethodCallIgnored
+            messages.size();
+
             if (Thread.interrupted()) return;
         }
     }
@@ -232,9 +262,9 @@ public class BigTest {
                     .stream()
                     .map(userId -> {
                         Message message = new Message();
-                        message.id_uuid = UUID.randomUUID();
-                        message.campaign_id = campaignId;
-                        message.user_id = userId;
+                        message.idUuid = UUID.randomUUID();
+                        message.campaignId = campaignId;
+                        message.userId = userId;
                         message.topic = topic;
                         message.text = text;
                         message.created = created;
@@ -267,7 +297,12 @@ public class BigTest {
     }
 
     private void saveMessagesBatch(List<Message> messagesBatch, int maxBatchSize) {
+
+        ArrayList<Tag> tags = new ArrayList<>(constantTags);
+
         boolean fullBatch = messagesBatch.size() == maxBatchSize;
+        tags.add(new ImmutableTag("fullBatch", fullBatch ? "1" : "0"));
+
         batchInsertTimerWrapper.withTimer(
                 () -> {
                     transactionTemplate.execute(status -> {
@@ -275,12 +310,7 @@ public class BigTest {
                         return null;
                     });
                 },
-                "runTime", runTimeStr,
-                "messageTableSize", String.valueOf(MESSAGE_TABLE_SIZE),
-                "threadsNumber", String.valueOf(THREADS_NUMBER),
-                "maxBatchSize", String.valueOf(MAX_BATCH_SIZE),
-                "fullBatch", fullBatch ? "1" : "0",
-                "unnest", String.valueOf(UNNEST)
+                tags
         );
     }
 

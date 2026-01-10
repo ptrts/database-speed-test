@@ -1,4 +1,4 @@
-package x.batch;
+package x.writer;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -25,9 +25,9 @@ public class TraditionalMessageBatchInserter implements MessageBatchInserter {
                 batchSize,
                 (ps, message) -> {
                     //@formatter:off
-                    ps.setObject    (1, message.id_uuid                   );
-                    ps.setLong      (2, message.campaign_id               );
-                    ps.setLong      (3, message.user_id                   );
+                    ps.setObject    (1, message.idUuid                    );
+                    ps.setLong      (2, message.campaignId                );
+                    ps.setLong      (3, message.userId                    );
                     ps.setString    (4, message.topic                     );
                     ps.setString    (5, message.text                      );
                     ps.setTimestamp (6, DbConverter.toDb(message.created) );
