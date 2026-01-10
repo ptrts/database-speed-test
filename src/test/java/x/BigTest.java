@@ -54,7 +54,7 @@ public class BigTest {
     private static final int USERS_NUMBER = 1_000_000;
     private static final int MESSAGE_TABLE_SIZE = 70_000_000;
 
-    private static final int READER_THREADS_NUMBER = 5;
+    private static final int READER_THREADS_NUMBER = 1;
 
     //private static final MessageWriterType MESSAGE_WRITER_TYPE = MessageWriterType.JDBC_UNNEST;
     private static final MessageWriterType MESSAGE_WRITER_TYPE = MessageWriterType.JDBC_REWRITE_BATCHED_INSERTS;
@@ -195,10 +195,13 @@ public class BigTest {
 
         logger.info("Running threads");
 
-        runThreads(Stream.concat(
-                writerThreadRunnables,
-                readerThreadRunnables
-        ));
+        List<Thread> writerThreads = launchThreads(writerThreadRunnables);
+        List<Thread> readerThreads = launchThreads(readerThreadRunnables);
+
+        joinThreads(writerThreads);
+
+        readerThreads.forEach(Thread::interrupt);
+        joinThreads(readerThreads);
     }
 
     private void readerThread() {
@@ -281,18 +284,21 @@ public class BigTest {
         });
     }
 
-    private void runThreads(Stream<Runnable> runnables) {
-        runnables
+    private static List<Thread> launchThreads(Stream<Runnable> runnables) {
+        return runnables
                 .map(Thread::new)
                 .peek(Thread::start)
-                .toList()
+                .toList();
+    }
+
+    private static void joinThreads(List<Thread> threads) {
+        threads
                 .forEach(it -> {
                     try {
                         it.join();
                     } catch (InterruptedException ignored) {
                     }
-                })
-        ;
+                });
     }
 
     private @Nullable Long getMaxCampaignId() {
