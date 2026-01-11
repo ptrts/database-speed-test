@@ -1,6 +1,7 @@
 package x.test;
 
 import io.micrometer.core.instrument.ImmutableTag;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -46,6 +47,9 @@ public class BigTest {
     private static final DataParameters dataParameters = new DataParameters();
 
     @Autowired
+    private MeterRegistry meterRegistry;
+
+    @Autowired
     private MessageWriterSelector messageWriterSelector;
 
     @Autowired
@@ -86,6 +90,8 @@ public class BigTest {
     }
 
     public void test(LaunchParameters launch) {
+
+        meterRegistry.clear();
 
         messageWriter = messageWriterSelector.get(launch.writer.type);
         messageReader = messageReaderSelector.get(launch.reader.implementation);
@@ -194,6 +200,8 @@ public class BigTest {
 
         readerThreads.forEach(Thread::interrupt);
         joinThreads(readerThreads);
+
+        meterRegistry.clear();
     }
 
     private void readerThread() {

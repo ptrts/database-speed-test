@@ -3,6 +3,8 @@ package x.test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,11 +23,17 @@ public class TestController {
     @Autowired
     private BigTest bigTest;
 
+    @Autowired
+    @Qualifier("applicationTaskExecutor")
+    private AsyncTaskExecutor applicationTaskExecutor;
+
     @PostMapping(consumes = MediaType.APPLICATION_YAML_VALUE)
     public void test(@RequestBody List<LaunchParameters> launches) {
-        launches.forEach(launch -> {
-            logger.info("{}", launch);
-            //bigTest.test(launch);
+        applicationTaskExecutor.submit(() -> {
+            launches.forEach(launch -> {
+                logger.info("{}", launch);
+                bigTest.test(launch);
+            });
         });
     }
 }

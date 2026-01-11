@@ -1,0 +1,27 @@
+[Unit]
+Description=Database Speed Test
+After=network.target
+
+[Service]
+Type=simple
+User=dbtest
+Group=dbtest
+WorkingDirectory=/opt/dbtest
+
+Environment=JAVA_OPTS=-Xms256m -Xmx512m
+
+ExecStart=/usr/bin/java $JAVA_OPTS -jar /opt/dbtest/app.jar
+
+Restart=on-failure
+RestartSec=3
+
+StandardOutput=journal
+StandardError=journal
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
