@@ -41,9 +41,9 @@ public class LaunchParameters {
     }
 
     public static class Reader {
-        public int threadsNumber;
-        public MessagesReadMethod method;
-        public ReaderImplementation implementation;
+        public int threadsNumber = 0;
+        public MessagesReadMethod method = MessagesReadMethod.ROW;
+        public ReaderImplementation implementation = ReaderImplementation.JDBC;
 
         @Override
         public String toString() {

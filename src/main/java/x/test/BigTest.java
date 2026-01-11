@@ -91,17 +91,23 @@ public class BigTest {
 
     public void test(LaunchParameters launch) {
 
+        logger.info("meterRegistry.clear()...");
         meterRegistry.clear();
+        logger.info("Done");
 
+        logger.info("Choosing writer...");
         messageWriter = messageWriterSelector.get(launch.writer.type);
+        logger.info("Done");
+
+        logger.info("Choosing reader...");
         messageReader = messageReaderSelector.get(launch.reader.implementation);
+        logger.info("Done");
 
         switch (launch.reader.method) {
             case ROW -> readRunnable = this::readRandomMessage;
             case LIST -> readRunnable = this::readRandomUserMessages;
             default -> throw new RuntimeException("Unexpected value " + launch.reader.method);
         }
-
 
         logger.info("rollback_messages...");
         transactionTemplate.execute((status) -> {

@@ -30,10 +30,14 @@ public class TestController {
     @PostMapping(consumes = MediaType.APPLICATION_YAML_VALUE)
     public void test(@RequestBody List<LaunchParameters> launches) {
         applicationTaskExecutor.submit(() -> {
-            launches.forEach(launch -> {
-                logger.info("{}", launch);
-                bigTest.test(launch);
-            });
+            try {
+                launches.forEach(launch -> {
+                    logger.info("{}", launch);
+                    bigTest.test(launch);
+                });
+            } catch (Exception e) {
+                logger.error("", e);
+            }
         });
     }
 }
