@@ -49,8 +49,8 @@ public class JdbcMessageReader implements MessageReader {
     private JdbcTemplate jdbcTemplate;
 
     @Override
-    public MessageReaderType getType() {
-        return MessageReaderType.JDBC;
+    public ReaderImplementation getType() {
+        return ReaderImplementation.JDBC;
     }
 
     @SuppressWarnings("UnusedReturnValue")

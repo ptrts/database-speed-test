@@ -10,8 +10,8 @@ import java.util.List;
 public interface SpringDataJpaMessageReader extends JpaRepository<Message, Long>, MessageReader  {
 
     @Override
-    default MessageReaderType getType() {
-        return MessageReaderType.SPRING_DATA_JPA;
+    default ReaderImplementation getType() {
+        return ReaderImplementation.SPRING_DATA_JPA;
     }
 
     @Override

@@ -14,7 +14,7 @@ public class MessageReaderSelector {
     @Autowired
     private List<MessageReader> messageReaders;
 
-    private Map<MessageReaderType, MessageReader> map;
+    private Map<ReaderImplementation, MessageReader> map;
 
     @PostConstruct
     public void postConstruct() {
@@ -26,7 +26,7 @@ public class MessageReaderSelector {
                 ));
     }
 
-    public MessageReader get(MessageReaderType type) {
+    public MessageReader get(ReaderImplementation type) {
         MessageReader messageReader = map.get(type);
         if (messageReader == null) {
             throw new RuntimeException("Unsupported type " + type.name());

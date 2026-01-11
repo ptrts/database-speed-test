@@ -6,7 +6,7 @@ import java.util.List;
 
 public interface MessageReader {
 
-    MessageReaderType getType();
+    ReaderImplementation getType();
 
     List<Message> listByUser(Long userId);
 

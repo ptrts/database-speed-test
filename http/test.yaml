@@ -1,0 +1,15 @@
+-
+  writer:
+    threadsNumber: 1
+
+    #type: JDBC_UNNEST
+    type: JDBC_REWRITE_BATCHED_INSERTS
+
+    campaignsPerThread: 1
+    usersPerCampaign: 100000
+    maxBatchSize: 1024
+
+  reader:
+    threadsNumber: 1
+    method: ROW
+    implementation: JDBC

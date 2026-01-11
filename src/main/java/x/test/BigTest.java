@@ -1,26 +1,25 @@
-package x;
+package x.test;
 
 import io.micrometer.core.instrument.ImmutableTag;
 import io.micrometer.core.instrument.Tag;
 import org.jspecify.annotations.Nullable;
-import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfigureMetrics;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.StatementCallback;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
-import x.reader.ReadMessagesTimerWrapper;
+import x.Message;
 import x.reader.MessageReader;
 import x.reader.MessageReaderSelector;
-import x.reader.MessageReaderType;
+import x.reader.ReadMessagesTimerWrapper;
+import x.test.parameters.DataParameters;
+import x.test.parameters.LaunchParameters;
 import x.writer.BatchInsertTimerWrapper;
 import x.writer.MessageWriter;
 import x.writer.MessageWriterSelector;
-import x.writer.MessageWriterType;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -39,29 +38,12 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
-@AutoConfigureMetrics
+@Component
 public class BigTest {
 
     public static final Logger logger = LoggerFactory.getLogger(BigTest.class);
 
-    private static final int USERS_NUMBER = 1_000_000;
-    private static final int MESSAGE_TABLE_SIZE = 70_000_000;
-
-    private static final int WRITER_THREADS_NUMBER = 1;
-    private static final int READER_THREADS_NUMBER = 1;
-
-    //private static final MessageWriterType MESSAGE_WRITER_TYPE = MessageWriterType.JDBC_UNNEST;
-    private static final MessageWriterType MESSAGE_WRITER_TYPE = MessageWriterType.JDBC_REWRITE_BATCHED_INSERTS;
-
-    private static final MessageReaderType MESSAGE_READER_TYPE = MessageReaderType.JDBC;
-
-    private static final MessagesReadType READ_TYPE = MessagesReadType.ROW;
-
-    private static final int CAMPAIGNS_PER_THREAD = 1;
-    private static final int CAMPAIGNS_NUMBER = WRITER_THREADS_NUMBER * CAMPAIGNS_PER_THREAD;
-    private static final int USERS_PER_CAMPAIGN = 100_000;
-    private static final int MAX_BATCH_SIZE = 1024;
+    private static final DataParameters dataParameters = new DataParameters();
 
     @Autowired
     private MessageWriterSelector messageWriterSelector;
@@ -103,17 +85,15 @@ public class BigTest {
         }
     }
 
-    @Test
-    @org.junit.jupiter.api.Tag("manual")
-    public void test() {
+    public void test(LaunchParameters launch) {
 
-        messageWriter = messageWriterSelector.get(MESSAGE_WRITER_TYPE);
-        messageReader = messageReaderSelector.get(MESSAGE_READER_TYPE);
+        messageWriter = messageWriterSelector.get(launch.writer.type);
+        messageReader = messageReaderSelector.get(launch.reader.implementation);
 
-        switch (READ_TYPE) {
+        switch (launch.reader.method) {
             case ROW -> readRunnable = this::readRandomMessage;
             case LIST -> readRunnable = this::readRandomUserMessages;
-            default -> throw new RuntimeException("Unexpected value " + READ_TYPE);
+            default -> throw new RuntimeException("Unexpected value " + launch.reader.method);
         }
 
 
@@ -121,11 +101,11 @@ public class BigTest {
         transactionTemplate.execute((status) -> {
             jdbcTemplate.update(
                     """
-                    call rollback_messages(
-                        p_campaigns_number => 700,
-                        p_users_per_campaign => 100000
-                    )
-                    """
+                            call rollback_messages(
+                                p_campaigns_number => 700,
+                                p_users_per_campaign => 100000
+                            )
+                            """
             );
             return null;
         });
@@ -157,17 +137,17 @@ public class BigTest {
         transactionTemplate.execute((status) -> {
             jdbcTemplate.update(
                     """
-                    call gen_campaign_users(
-                        p_start_campaign_id => ?::bigint,
-                        p_campaigns_number => ?::int,
-                        p_users_per_campaign => ?::int,
-                        p_users_number => ?::int
-                    )
-                    """,
+                            call gen_campaign_users(
+                                p_start_campaign_id => ?::bigint,
+                                p_campaigns_number => ?::int,
+                                p_users_per_campaign => ?::int,
+                                p_users_number => ?::int
+                            )
+                            """,
                     firstCampaignId,
-                    CAMPAIGNS_NUMBER,
-                    USERS_PER_CAMPAIGN,
-                    USERS_NUMBER
+                    launch.writer.getCampaignsNumber(),
+                    launch.writer.usersPerCampaign,
+                    dataParameters.usersNumber
             );
             return null;
         });
@@ -183,26 +163,26 @@ public class BigTest {
 
         constantTags = List.of(
                 new ImmutableTag("runTime", runTimeStr),
-                new ImmutableTag("messageTableSize", String.valueOf(MESSAGE_TABLE_SIZE)),
-                new ImmutableTag("threadsNumber", String.valueOf(WRITER_THREADS_NUMBER)),
-                new ImmutableTag("maxBatchSize", String.valueOf(MAX_BATCH_SIZE)),
-                new ImmutableTag("writer", MESSAGE_WRITER_TYPE.name()),
-                new ImmutableTag("reader", MESSAGE_READER_TYPE.name()),
-                new ImmutableTag("readType", READ_TYPE.name())
+                new ImmutableTag("messageTableSize", String.valueOf(dataParameters.messageTableSize)),
+                new ImmutableTag("threadsNumber", String.valueOf(launch.writer.threadsNumber)),
+                new ImmutableTag("maxBatchSize", String.valueOf(launch.writer.maxBatchSize)),
+                new ImmutableTag("writer", launch.writer.type.name()),
+                new ImmutableTag("reader", launch.reader.implementation.name()),
+                new ImmutableTag("readType", launch.reader.method.name())
         );
 
         Stream<Runnable> writerThreadRunnables = IntStream
-                .range(0, WRITER_THREADS_NUMBER)
+                .range(0, launch.writer.threadsNumber)
                 .mapToObj(threadIndex -> {
-                    int campaignIndexStart = threadIndex * CAMPAIGNS_PER_THREAD;
-                    int campaignIndexEnd = Math.min(CAMPAIGNS_NUMBER, campaignIndexStart + CAMPAIGNS_PER_THREAD);
+                    int campaignIndexStart = threadIndex * launch.writer.campaignsPerThread;
+                    int campaignIndexEnd = Math.min(launch.writer.getCampaignsNumber(), campaignIndexStart + launch.writer.campaignsPerThread);
                     long campaignIdStart = firstCampaignId + campaignIndexStart;
                     long campaignIdEnd = firstCampaignId + campaignIndexEnd;
-                    return () -> writerThread(campaignIdStart, campaignIdEnd);
+                    return () -> writerThread(campaignIdStart, campaignIdEnd, launch.writer.maxBatchSize);
                 });
 
         Stream<Runnable> readerThreadRunnables = IntStream
-                .range(0, READER_THREADS_NUMBER)
+                .range(0, launch.reader.threadsNumber)
                 .mapToObj(it -> this::readerThread);
 
         logger.info("Running threads");
@@ -225,7 +205,7 @@ public class BigTest {
     }
 
     private void readRandomUserMessages() {
-        long userId = ThreadLocalRandom.current().nextLong(1, USERS_NUMBER + 1);
+        long userId = ThreadLocalRandom.current().nextLong(1, dataParameters.usersNumber + 1);
 
         @SuppressWarnings("unused")
         List<Message> messages = readMessagesTimerWrapper.withTimer(
@@ -235,7 +215,7 @@ public class BigTest {
     }
 
     private void readRandomMessage() {
-        long messageId = ThreadLocalRandom.current().nextLong(1, MESSAGE_TABLE_SIZE + 1);
+        long messageId = ThreadLocalRandom.current().nextLong(1, dataParameters.messageTableSize + 1);
 
         @SuppressWarnings("unused")
         Message message = readMessagesTimerWrapper.withTimer(
@@ -244,16 +224,16 @@ public class BigTest {
         );
     }
 
-    private void writerThread(long campaignIdStart, long campaignIdEnd) {
+    private void writerThread(long campaignIdStart, long campaignIdEnd, int maxBatchSize) {
         logger.info("start");
         for (long campaignId = campaignIdStart; campaignId < campaignIdEnd; campaignId++) {
             logger.info("campaignId={}", campaignId);
-            writeCampaign(campaignId);
+            writeCampaign(campaignId, maxBatchSize);
             if (Thread.interrupted()) return;
         }
     }
 
-    private void writeCampaign(long campaignId) {
+    private void writeCampaign(long campaignId, int maxBatchSize) {
         logger.info("campaignId={}", campaignId);
         logger.info("Querying...");
 
@@ -269,20 +249,20 @@ public class BigTest {
 
         List<Long> userIds = jdbcTemplate.queryForList(
                 """
-                select
-                    user_id
-                from
-                    campaign_users
-                where
-                    campaign_id = ?
-                """,
+                        select
+                            user_id
+                        from
+                            campaign_users
+                        where
+                            campaign_id = ?
+                        """,
                 Long.class,
                 campaignId
         );
 
         logger.info("Saving batches...");
 
-        forEachBatch(userIds, MAX_BATCH_SIZE, (batchIndex, userIdsBatch) -> {
+        forEachBatch(userIds, maxBatchSize, (batchIndex, userIdsBatch) -> {
             logger.info("Running batchInsert: batchIndex={}, size={}", batchIndex, userIdsBatch.size());
 
             Instant created = Instant.now();
@@ -303,25 +283,8 @@ public class BigTest {
                     })
                     .toList();
 
-            saveMessagesBatch(messagesBatch, MAX_BATCH_SIZE);
+            saveMessagesBatch(messagesBatch, maxBatchSize);
         });
-    }
-
-    private static List<Thread> launchThreads(Stream<Runnable> runnables) {
-        return runnables
-                .map(Thread::new)
-                .peek(Thread::start)
-                .toList();
-    }
-
-    private static void joinThreads(List<Thread> threads) {
-        threads
-                .forEach(it -> {
-                    try {
-                        it.join();
-                    } catch (InterruptedException ignored) {
-                    }
-                });
     }
 
     private @Nullable Long getMaxCampaignId() {
@@ -353,5 +316,22 @@ public class BigTest {
             batchConsumer.accept(batchIndex, batch);
             batchIndex++;
         }
+    }
+
+    private static List<Thread> launchThreads(Stream<Runnable> runnables) {
+        return runnables
+                .map(Thread::new)
+                .peek(Thread::start)
+                .toList();
+    }
+
+    private static void joinThreads(List<Thread> threads) {
+        threads
+                .forEach(it -> {
+                    try {
+                        it.join();
+                    } catch (InterruptedException ignored) {
+                    }
+                });
     }
 }

@@ -1,6 +1,6 @@
 package x.reader;
 
-public enum MessageReaderType {
+public enum ReaderImplementation {
     JDBC,
     SPRING_DATA_JPA,
 }
