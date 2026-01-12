@@ -1,4 +1,4 @@
 POST http://{{host}}:8080/test
 Content-Type: application/yaml
 
-< ./test.yaml
+< ./test2.yaml

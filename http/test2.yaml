@@ -1,0 +1,21 @@
+# reading lists: JDBC vs Spring Data JPA
+- writer:
+    threadsNumber: 5
+    type: JDBC_REWRITE_BATCHED_INSERTS
+    campaignsPerThread: 1
+    usersPerCampaign: 100000
+    maxBatchSize: 1024
+  reader:
+    threadsNumber: 5
+    method: LIST
+    implementation: JDBC
+- writer:
+    threadsNumber: 5
+    type: JDBC_REWRITE_BATCHED_INSERTS
+    campaignsPerThread: 1
+    usersPerCampaign: 100000
+    maxBatchSize: 1024
+  reader:
+    threadsNumber: 5
+    method: LIST
+    implementation: SPRING_DATA_JPA
