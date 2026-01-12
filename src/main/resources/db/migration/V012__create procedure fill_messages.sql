@@ -1,4 +1,4 @@
-create or replace procedure fill_messages()
+create or replace procedure _fill_messages()
     language plpgsql
 as
 $$
@@ -40,15 +40,3 @@ begin
         o.campaign_id, o.user_id;
 end;
 $$;
-
-call fill_messages();
-
-vacuum (analyze) message;
-
-select max(id_bigint) from message;
-select max(campaign_id) from message;
-
-select campaign_id, count(*) c from message group by campaign_id;
-select campaign_id, user_id c from message order by campaign_id, user_id;
-
-select pg_size_pretty(pg_total_relation_size('message')) as total_size;

@@ -1,11 +1,19 @@
 package x.test.parameters;
 
-public class DataParameters {
-    public int usersNumber;
-    public int messageTableSize;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
 
-    {
-        usersNumber = 1_000_000;
-        messageTableSize = 70_000_000;
+@Entity
+public class DataParameters {
+
+    @Id
+    public int id = 1;
+
+    public int campaignsNumber;
+    public int usersPerCampaign;
+    public int usersNumber;
+
+    public int getMessageTableSize() {
+        return campaignsNumber * usersPerCampaign;
     }
 }

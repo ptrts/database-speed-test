@@ -3,6 +3,7 @@ package x.test;
 import io.micrometer.core.instrument.ImmutableTag;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
+import jakarta.persistence.EntityManager;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,8 +45,6 @@ public class BigTest {
 
     public static final Logger logger = LoggerFactory.getLogger(BigTest.class);
 
-    private static final DataParameters dataParameters = new DataParameters();
-
     @Autowired
     private MeterRegistry meterRegistry;
 
@@ -65,10 +64,15 @@ public class BigTest {
     private TransactionTemplate transactionTemplate;
 
     @Autowired
+    private EntityManager entityManager;
+
+    @Autowired
     private BatchInsertTimerWrapper batchInsertTimerWrapper;
 
     @Autowired
     private ReadMessagesTimerWrapper readMessagesTimerWrapper;
+
+    private DataParameters dataParameters;
 
     private List<Tag> constantTags;
 
@@ -90,6 +94,8 @@ public class BigTest {
     }
 
     public void test(LaunchParameters launch) {
+        entityManager.clear();
+        dataParameters = entityManager.find(DataParameters.class, 1);
 
         logger.info("meterRegistry.clear()...");
         meterRegistry.clear();
@@ -113,11 +119,14 @@ public class BigTest {
         transactionTemplate.execute((status) -> {
             jdbcTemplate.update(
                     """
-                            call rollback_messages(
-                                p_campaigns_number => 700,
-                                p_users_per_campaign => 100000
+                            call _rollback_messages(
+                                p_campaigns_number => ?,
+                                p_users_per_campaign => ?
                             )
                             """
+                    ,
+                    dataParameters.campaignsNumber,
+                    dataParameters.usersPerCampaign
             );
             return null;
         });
@@ -149,7 +158,7 @@ public class BigTest {
         transactionTemplate.execute((status) -> {
             jdbcTemplate.update(
                     """
-                            call gen_campaign_users(
+                            call _gen_campaign_users(
                                 p_start_campaign_id => ?::bigint,
                                 p_campaigns_number => ?::int,
                                 p_users_per_campaign => ?::int,
@@ -175,7 +184,7 @@ public class BigTest {
 
         constantTags = List.of(
                 new ImmutableTag("runTime", runTimeStr),
-                new ImmutableTag("messageTableSize", String.valueOf(dataParameters.messageTableSize)),
+                new ImmutableTag("messageTableSize", String.valueOf(dataParameters.getMessageTableSize())),
                 new ImmutableTag("threadsNumber", String.valueOf(launch.writer.threadsNumber)),
                 new ImmutableTag("maxBatchSize", String.valueOf(launch.writer.maxBatchSize)),
                 new ImmutableTag("writer", launch.writer.type.name()),
@@ -229,7 +238,7 @@ public class BigTest {
     }
 
     private void readRandomMessage() {
-        long messageId = ThreadLocalRandom.current().nextLong(1, dataParameters.messageTableSize + 1);
+        long messageId = ThreadLocalRandom.current().nextLong(1, dataParameters.getMessageTableSize() + 1);
 
         @SuppressWarnings("unused")
         Message message = readMessagesTimerWrapper.withTimer(

@@ -1,4 +1,4 @@
-create or replace procedure rollback_messages(
+create or replace procedure _rollback_messages(
     p_campaigns_number   int,
     p_users_per_campaign int
 )
@@ -22,14 +22,3 @@ begin
     insert into campaign_users(campaign_id, user_id) values (p_campaigns_number, 0);
 end;
 $$;
-
-call rollback_messages(700, 100000);
-
-vacuum (analyze) message;
-vacuum (analyze) campaign_users;
-
-select * from campaign_users;
-
-select max(id_bigint) from message;
-select min(id_bigint) from message;
-select max(campaign_id) from message;

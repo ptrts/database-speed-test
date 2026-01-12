@@ -1,4 +1,4 @@
-create or replace procedure gen_campaign_users(
+create or replace procedure _gen_campaign_users(
     p_start_campaign_id  bigint,
     p_campaigns_number   int,
     p_users_per_campaign int,
@@ -32,7 +32,7 @@ begin
                     insert into campaign_users (campaign_id, user_id)
                     select
                         current_campaign_id::bigint,
-                        floor(random() * p_users_number)::bigint
+                        floor(random() * p_users_number)::bigint + 1
                     from
                         generate_series(1, batch_size)
                     on conflict on constraint campaign_users_uidx do nothing;
@@ -45,24 +45,3 @@ begin
         end loop;
 end;
 $$;
-
--- Пробное наполнение на 1 000 000 записей
-call gen_campaign_users(
-    p_start_campaign_id => 1,
-    p_campaigns_number => 100,
-    p_users_per_campaign => 10000,
-    p_users_number => 100000
-);
-
--- Пробное наполнение на 70 000 000 записей
-call gen_campaign_users(
-    p_start_campaign_id => 1,
-    p_campaigns_number => 700,
-    p_users_per_campaign => 100000,
-    p_users_number => 1000000
-);
-
-select campaign_id, count(*) c from campaign_users group by campaign_id;
-select user_id from campaign_users where campaign_id = 1;
-
-vacuum (analyze) campaign_users;
