@@ -115,7 +115,7 @@ public class BigTest {
             default -> throw new RuntimeException("Unexpected value " + launch.reader.method);
         }
 
-        logger.info("rollback_messages...");
+        logger.info("_rollback_messages...");
         transactionTemplate.execute((status) -> {
             jdbcTemplate.update(
                     """
