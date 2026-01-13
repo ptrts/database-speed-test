@@ -103,3 +103,10 @@ provider_installation {
 ```PowerShell
 terraform init
 ```
+
+Удалите файл [./terraform/.terraform.lock.hcl](./terraform/.terraform.lock.hcl). 
+
+Сгенерируйте lock файл снова, следующей командой:
+```PowerShell
+terraform providers lock -net-mirror=https://terraform-mirror.yandexcloud.net -platform=windows_amd64 -platform=linux_amd64 -platform=darwin_arm64 yandex-cloud/yandex
+```
