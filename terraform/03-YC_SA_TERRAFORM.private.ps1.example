@@ -1,0 +1,1 @@
+$Env:YC_SA_TERRAFORM="<ID сервисного аккаунта terraform>"
