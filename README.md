@@ -99,18 +99,58 @@ terraform init
 terraform providers lock -net-mirror=https://terraform-mirror.yandexcloud.net -platform=windows_amd64 -platform=linux_amd64 -platform=darwin_arm64 yandex-cloud/yandex
 ```
 
-# TODO: правильно разместить в файле
+### Генерируем SSH ключи для доступа к VM
 
-yc compute image list --folder-id standard-images
+ssh-keygen -t ed25519
 
-yc compute image list --folder-id standard-images | Select-String -Pattern "ubuntu-2404-lts-oslogin-v202511"
+Будут сформированы вот такая пара ключей:
+- [./terraform/id_ed25519](./terraform/id_ed25519)
+- [./terraform/id_ed25519.pub](./terraform/id_ed25519.pub)
 
+Эти ключи проигнорированы в [gitignore](.gitignore). 
+
+### Если нужно создавать VM на базе другого образа
+
+У нас используется вот такой образ
+```
 ID          : fd80von1v2g6rjn7oofk
 NAME        : ubuntu-2404-lts-oslogin-v20251117
 FAMILY      : ubuntu-2404-lts-oslogin
 PRODUCT IDS : f2evival4mdpe3hpjhme
-STATUS      : READY
+```
 
-ssh-keygen -t ed25519
+Но, можно использовать и другие образы. 
 
-ssh -i id_ed25519 myuser@130.193.52.80
+Получите список всех доступных образов. 
+```PowerShell
+yc compute image list --folder-id standard-images
+```
+
+При необходимости, отфильтруйте этот список каким-то похожим образом:
+```PowerShell
+yc compute image list --folder-id standard-images | Select-String -Pattern " ubuntu-2404-lts-oslogin-v202511"
+```
+
+Выберите образ, скопируйте его ID и используйте его в [./terraform/main.tf](./terraform/main.tf)
+
+### Создайте ресурсы
+
+```PowerShell
+terraform plan
+```
+
+```PowerShell
+terraform apply
+```
+
+### Проверьте доступ к VM
+
+```PowerShell
+ssh -i id_ed25519 myuser@<публичный IP>
+```
+
+### Удаление ресурсов
+
+```PowerShell
+terraform destroy
+```

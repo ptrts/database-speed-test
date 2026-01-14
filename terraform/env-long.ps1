@@ -8,4 +8,4 @@ $result = $ExecutionContext.SessionState.InvokeCommand.ExpandString($template)
 
 $result | Set-Content ".\env.private.ps1" -Encoding UTF8
 
-. "$PSScriptRoot\env-fast.ps1"
+. "$PSScriptRoot\env.ps1"
