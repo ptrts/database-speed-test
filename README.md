@@ -4,26 +4,15 @@
 
 https://yandex.cloud/ru/docs/cli/quickstart
 
-В процессе выберите `[2] Create a new profile`, 
+Нам нужно чтоб в каком-то из доступных вам облаков был каталог `database-speed-test`, 
+и чтобы на вашем компьютере был профиль yc тоже с названием `database-speed-test`, 
+настроенный для работы с этим облаком и с этим каталогом. 
+
+Поэтому, во время работы `yc init` выберите `[2] Create a new profile`, 
 введите имя нового **профиля** `database-speed-test`. 
 
 Потом, выберите `[3] Create a new folder`, 
 введите имя нового **каталога** `database-speed-test`. 
-
-### Сохраните ID облака
-
-Получите ID облака
-```PowerShell
-yc config get cloud-id
-```
-
-Сохраните ID облака в [./terraform/01-YC_CLOUD_ID.private.ps1](./terraform/01-YC_CLOUD_ID.private.ps1)
-и выполните этот файл в PowerShell, чтобы установилась переменная окружения `YC_CLOUD_ID`.
-
-### Сохраните ID каталога database-speed-test
-
-Сохраните ID каталога в [./terraform/02-YC_FOLDER_ID.private.ps1](./terraform/02-YC_FOLDER_ID.private.ps1)
-и выполните этот файл в PowerShell, чтобы установилась переменная окружения `YC_FOLDER_ID`.
 
 ### Создайте в каталоге database-speed-test service account для Terraform
 
@@ -31,16 +20,31 @@ yc config get cloud-id
 yc iam service-account create --name terraform
 ```
 
-Скопируйте в буфер обмена идентификатор созданного service account. 
+### Проставьте переменные окружения
 
-Или, запросите его вот так:
-
+Запустите следующий скрипт:
 ```PowerShell
-yc iam service-account get terraform
+./env-long.ps1
 ```
 
-Сохраните полученный ID в [./terraform/03-YC_SA_TERRAFORM.private.ps1](./terraform/03-YC_SA_TERRAFORM.private.ps1)
-и выполните этот файл, чтобы установилась переменная окружения `YC_SA_TERRAFORM`. 
+В результате будет создан другой скрипт [./terraform/env.private.ps1](./terraform/env.private.ps1), 
+устанавливающий следующие переменные окружения:
+- `YC_CLOUD_ID`
+- `YC_FOLDER_ID`
+- `YC_SA_TERRAFORM_ID`
+
+Данный созданный скрипт будет автоматически выполнен, 
+упомянутые переменные окружения будут автоматически проставлены в текущий сеанс PowerShell. 
+
+Также будет сформирован IAM токен для работы от имени созданного нами ранее сервисного аккаунта `terraform`. 
+Этот IAM токен будет проставлен в переменную окружения `YC_TOKEN`.
+
+Срок действия этого токена `YC_TOKEN` периодически истекает, 
+и его приходится обновлять 
+скриптом [./terraform/env-fast.ps1](./terraform/env-fast.ps1).
+
+Также [./terraform/env-fast.ps1](./terraform/env-fast.ps1) нужно выполнять перед работой с terraform в новом сеансе PowerShell, 
+где еще не проставлены все нужные переменные окружения. 
 
 ### Назначьте сервисному аккаунту terraform роли
 
@@ -48,25 +52,6 @@ yc iam service-account get terraform
 yc resource-manager folder add-access-binding $Env:YC_FOLDER_ID --role editor --subject "serviceAccount:$Env:YC_SA_TERRAFORM"
 yc resource-manager folder add-access-binding $Env:YC_FOLDER_ID --role compute.osLogin --subject "serviceAccount:$Env:YC_SA_TERRAFORM"
 ```
-
-### Добавьте аутентификационные данные в переменные окружения
-
-```PowerShell
-$Env:YC_TOKEN=$(yc iam create-token --impersonate-service-account-id $Env:YC_SA_TERRAFORM)
-```
-
-Срок действия этого токена YC_TOKEN периодически истекает. 
-Токен приходится периодически обновлять, 
-выполняя файл [./terraform/04-YC_TOKEN.ps1](./terraform/04-YC_TOKEN.ps1), 
-который содержит ту команду выше.
-
-### В каждом сеансы работы в PowerShell, обновляйте переменные окружения
-
-В новом сеансе PowerShell выполняйте следующие файлы для обновления переменных окружения:
-- [./terraform/01-YC_CLOUD_ID.private.ps1](./terraform/01-YC_CLOUD_ID.private.ps1)
-- [./terraform/02-YC_FOLDER_ID.private.ps1](./terraform/02-YC_FOLDER_ID.private.ps1)
-- [./terraform/03-YC_SA_TERRAFORM.private.ps1](./terraform/03-YC_SA_TERRAFORM.private.ps1)
-- [./terraform/04-YC_TOKEN.ps1](./terraform/04-YC_TOKEN.ps1)
 
 ### Устанавливаем Terraform CLI (terraform)
 
@@ -101,7 +86,7 @@ provider_installation {
 }
 ```
 
-### Далее
+### Инициализация Terraform
 
 ```PowerShell
 terraform init
