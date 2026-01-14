@@ -44,7 +44,10 @@ yc iam service-account get terraform
 
 ### Назначьте сервисному аккаунту terraform роли
 
-TODO
+```PowerShell
+yc resource-manager folder add-access-binding $Env:YC_FOLDER_ID --role editor --subject "serviceAccount:$Env:YC_SA_TERRAFORM"
+yc resource-manager folder add-access-binding $Env:YC_FOLDER_ID --role compute.osLogin --subject "serviceAccount:$Env:YC_SA_TERRAFORM"
+```
 
 ### Добавьте аутентификационные данные в переменные окружения
 
@@ -110,3 +113,19 @@ terraform init
 ```PowerShell
 terraform providers lock -net-mirror=https://terraform-mirror.yandexcloud.net -platform=windows_amd64 -platform=linux_amd64 -platform=darwin_arm64 yandex-cloud/yandex
 ```
+
+# TODO: правильно разместить в файле
+
+yc compute image list --folder-id standard-images
+
+yc compute image list --folder-id standard-images | Select-String -Pattern "ubuntu-2404-lts-oslogin-v202511"
+
+ID          : fd80von1v2g6rjn7oofk
+NAME        : ubuntu-2404-lts-oslogin-v20251117
+FAMILY      : ubuntu-2404-lts-oslogin
+PRODUCT IDS : f2evival4mdpe3hpjhme
+STATUS      : READY
+
+ssh-keygen -t ed25519
+
+ssh -i id_ed25519 myuser@130.193.52.80
